@@ -1,0 +1,45 @@
+name: Aphrody libc overlay
+
+# Manual for now (chantier U2 runs builds in a single final pass); switch to
+# push/pull_request on aphrody-libc/** and aphrody/** once green.
+on:
+  workflow_dispatch:
+
+jobs:
+  alpine:
+    name: Alpine 3.24 ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    container: alpine:3.24
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - run: apk add --no-cache bash git cargo build-base make curl libstdc++ libgcc unzip
+      # JS actions do not run in Alpine containers on arm64 runners.
+      - name: Checkout
+        run: |
+          git init -q . && git remote add origin "https://github.com/${{ github.repository }}"
+          git fetch -q --depth 1 origin "${{ github.sha }}" && git checkout -q FETCH_HEAD
+      - name: Unit tests (differential + guard page + qsort)
+        working-directory: aphrody-libc
+        run: cargo test --release
+      - name: Build libaphrody_libc.{so,a}
+        working-directory: aphrody-libc
+        run: cargo rustc --release --lib -- -C link-arg=-Wl,-soname,libaphrody_libc.so.0
+      - name: Install bun (musl)
+        run: curl -fsSL https://bun.sh/install | bash
+      - name: musl libc-test, static and LD_PRELOAD overlay vs plain musl
+        run: >-
+          ~/.bun/bin/bun aphrody/conformance/libc-test.ts
+          --archive aphrody-libc/target/release/libaphrody_libc.a
+          --preload aphrody-libc/target/release/libaphrody_libc.so
+      - name: Bun smoke on the overlay
+        run: >-
+          ~/.bun/bin/bun aphrody/conformance/bun-smoke.ts
+          --bun ~/.bun/bin/bun
+          --preload aphrody-libc/target/release/libaphrody_libc.so

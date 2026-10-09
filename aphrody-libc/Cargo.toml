@@ -1,0 +1,33 @@
+[package]
+name = "aphrody-libc"
+version = "0.1.0"
+description = "Rust overlay for musl: SIMD string/memory routines and introsort qsort, exported with the musl C ABI"
+license = "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"
+repository = "https://github.com/aphrody-labs/c-ward"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+# cdylib: libaphrody_libc.so (LD_PRELOAD or DT_NEEDED before libc.so).
+# staticlib: libaphrody_libc.a (linked before -lc: replaces the musl members).
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+memchr = { version = "2.8", default-features = false }
+
+[dev-dependencies]
+libc = "0.2.155"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+codegen-units = 1
+debug = 1
+
+# Standalone: built by the apk with Alpine's stable rustc, not the c-ward
+# workspace nightly.
+[workspace]

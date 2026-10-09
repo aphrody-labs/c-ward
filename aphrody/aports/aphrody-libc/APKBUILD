@@ -1,0 +1,68 @@
+# Contributor: aphrody-dev <yohanpierre15@gmail.com>
+# Maintainer: aphrody-dev <yohanpierre15@gmail.com>
+#
+# Destination: aphrody-labs/aports, aphrody/aphrody-libc/APKBUILD (chantier U).
+# musl stays the libc and the ABI; this package adds Rust replacements for
+# the musl leaf functions that are slow (memcmp/bcmp, strlen/strnlen,
+# strchr/strchrnul/strrchr, strcmp/strncmp, memchr/memrchr, memmem/strstr,
+# qsort/qsort_r). Same C signatures and semantics, no state, no libc calls.
+#
+# Link methods:
+#   - static : libaphrody_libc.a placed before -lc (aphrody-libc-dev). Every
+#              caller in the executable, musl's static members included.
+#   - dynamic: -laphrody_libc before -lc (DT_NEEDED ahead of libc.so), or
+#              LD_PRELOAD=/usr/lib/libaphrody_libc.so.0 for existing binaries
+#              (aphrody-libc-preload sets it for login shells).
+pkgname=aphrody-libc
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Rust overlay for musl: SIMD string/memory functions and introsort qsort"
+url="https://github.com/aphrody-labs/c-ward"
+arch="x86_64 aarch64"
+license="Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT"
+makedepends="cargo cargo-auditable"
+subpackages="$pkgname-dev $pkgname-preload:preload:noarch"
+source="c-ward-aphrody-libc-v$pkgver.tar.gz::https://github.com/aphrody-labs/c-ward/archive/refs/tags/aphrody-libc-v$pkgver.tar.gz
+	aphrody-libc.sh
+	"
+builddir="$srcdir/c-ward-aphrody-libc-v$pkgver/aphrody-libc"
+# cargo fetch needs the network in prepare().
+options="net"
+
+_soname=libaphrody_libc.so.0
+
+prepare() {
+	default_prepare
+	cargo fetch --target="$CTARGET"
+}
+
+build() {
+	cargo auditable rustc --offline --release --lib -- \
+		-C link-arg=-Wl,-soname,$_soname
+}
+
+check() {
+	cargo test --offline --release
+}
+
+package() {
+	install -Dm755 target/release/libaphrody_libc.so "$pkgdir"/usr/lib/$_soname
+}
+
+dev() {
+	default_dev
+	install -Dm644 "$builddir"/target/release/libaphrody_libc.a \
+		"$subpkgdir"/usr/lib/libaphrody_libc.a
+	ln -s $_soname "$subpkgdir"/usr/lib/libaphrody_libc.so
+}
+
+preload() {
+	pkgdesc="$pkgdesc (LD_PRELOAD for login shells)"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	install -Dm644 "$srcdir"/aphrody-libc.sh "$subpkgdir"/etc/profile.d/aphrody-libc.sh
+}
+
+sha512sums="
+SKIP  c-ward-aphrody-libc-v0.1.0.tar.gz
+SKIP  aphrody-libc.sh
+"
