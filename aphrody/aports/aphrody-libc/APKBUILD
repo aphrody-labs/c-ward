@@ -39,6 +39,19 @@ prepare() {
 build() {
 	cargo auditable rustc --offline --release --lib -- \
 		-C link-arg=-Wl,-soname,$_soname
+
+	# The raw staticlib carries its own core, compiler_builtins and panic
+	# handler; linked into a program that has Rust code of its own (Bun) they
+	# would collide. Partial-link it into one object and keep only the C
+	# exports global.
+	local keep="" sym
+	while read -r sym; do
+		keep="$keep --keep-global-symbol=$sym"
+	done < exports.txt
+	ld -r --whole-archive target/release/libaphrody_libc.a -o target/release/aphrody_libc.o
+	objcopy $keep target/release/aphrody_libc.o
+	rm -f target/release/libaphrody_libc_overlay.a
+	ar rcs target/release/libaphrody_libc_overlay.a target/release/aphrody_libc.o
 }
 
 check() {
@@ -51,7 +64,7 @@ package() {
 
 dev() {
 	default_dev
-	install -Dm644 "$builddir"/target/release/libaphrody_libc.a \
+	install -Dm644 "$builddir"/target/release/libaphrody_libc_overlay.a \
 		"$subpkgdir"/usr/lib/libaphrody_libc.a
 	ln -s $_soname "$subpkgdir"/usr/lib/libaphrody_libc.so
 }

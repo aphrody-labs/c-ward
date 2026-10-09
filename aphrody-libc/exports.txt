@@ -1,0 +1,15 @@
+bcmp
+memchr
+memcmp
+memmem
+memrchr
+qsort
+qsort_r
+strchr
+strchrnul
+strcmp
+strlen
+strncmp
+strnlen
+strrchr
+strstr
